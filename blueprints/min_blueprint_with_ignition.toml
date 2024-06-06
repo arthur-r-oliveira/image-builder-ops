@@ -1,0 +1,15 @@
+name = "rhel-9.3-microshift-4.15-edge-raw-azure-nvidia"
+description = "Extended rhel-9.3-microshift-4.15-edge-raw-gpu with kernel parms for Microsoft Azure compatibility"
+version = "0.0.1"
+modules = []
+groups = []
+distro = "rhel-93"
+
+[customizations]
+partitioning_mode = "lvm"
+
+[customizations.kernel]
+append = "loglevel=3 crashkernel=auto console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300"
+
+[customizations.ignition.firstboot]
+url = "http://20.115.57.36/azure-config.ig"

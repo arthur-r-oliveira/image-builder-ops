@@ -1,0 +1,5 @@
+provider = "azure"
+[settings]
+storageAccount = "your storage account name"
+storageAccessKey = "storage access key you copied in the Azure portal"
+container = "your storage container name"

@@ -1,0 +1,54 @@
+name = "rhel-9.3-microshift-4.15-edge-raw-azure"
+description = "Extended rhel-9.3-microshift-4.15-edge-raw with kernel parms for Microsoft Azure compatibility"
+version = "0.0.1"
+modules = []
+groups = []
+distro = "rhel-93"
+
+[[packages]]
+name = "microshift"
+version = "*"
+
+[[packages]]
+name = "microshift-greenboot"
+version = "*"
+
+[[packages]]
+name = "microshift-networking"
+version = "*"
+
+[[packages]]
+name = "microshift-selinux"
+version = "*"
+
+## According to https://learn.microsoft.com/en-us/azure/virtual-machines/linux/redhat-create-upload-vhd#hyper-v-manager
+### Install the Azure Linux Agent, cloud-init and other necessary utilities 
+
+[[packages]]
+name = "WALinuxAgent"
+version = "*"
+
+[[packages]]
+name = "cloud-init"
+version = "*"
+
+[[packages]]
+name = "cloud-utils-growpart"
+version = "*"
+
+[[packages]]
+name = "gdisk"
+version = "*"
+
+[[packages]]
+name = "hyperv-daemons"
+version = "*"
+
+[customizations]
+partitioning_mode = "lvm"
+
+[customizations.kernel]
+append = "loglevel=3 crashkernel=auto console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300"
+
+[customizations.ignition.firstboot]
+url = "http://20.115.57.36/azure-config.ig"

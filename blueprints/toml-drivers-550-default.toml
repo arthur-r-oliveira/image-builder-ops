@@ -1,0 +1,92 @@
+name = "minimal-microshift"
+
+description = ""
+version = "0.0.1"
+modules = []
+modules = []
+groups = []
+
+[[packages]]
+name = "microshift"
+version = "*"
+
+[[packages]]
+name = "cuda-drivers"
+version = "550.54.15-1.x86_64"
+[[packages]]
+name = "nvidia-driver"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-driver-NVML"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-driver-NvFBCOpenGL"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-driver-cuda"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-driver-cuda-libs"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-driver-devel"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-driver-libs"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-libXNVCtrl"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-libXNVCtrl-devel"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-modprobe"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-persistenced"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-settings"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+[[packages]]
+name = "nvidia-xconfig"
+version = "550.54.15-1.el9.x86_64.rpm"
+
+## According to https://learn.microsoft.com/en-us/azure/virtual-machines/linux/redhat-create-upload-vhd#hyper-v-manager
+### Install the Azure Linux Agent, cloud-init and other necessary utilities 
+
+[[packages]]
+name = "WALinuxAgent"
+version = "*"
+
+[[packages]]
+name = "cloud-init"
+version = "*"
+
+[[packages]]
+name = "cloud-utils-growpart"
+version = "*"
+
+[[packages]]
+name = "gdisk"
+version = "*"
+
+[[packages]]
+name = "hyperv-daemons"
+version = "*"
+
+[customizations.ignition.firstboot]
+url = "http://20.115.57.36/azure-config.ig"

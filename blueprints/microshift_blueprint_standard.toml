@@ -1,0 +1,113 @@
+name = "rhel-9.3-microshift-4.15"
+description = "RHEL 9.3 with MicroShift from the previous minor version (y-stream) installed."
+version = "0.0.1"
+modules = []
+groups = []
+distro = "rhel-93"
+
+[[packages]]
+name = "microshift"
+version = "*"
+
+[[packages]]
+name = "microshift-greenboot"
+version = "*"
+
+[[packages]]
+name = "microshift-networking"
+version = "*"
+
+[[packages]]
+name = "microshift-selinux"
+version = "*"
+
+## According to https://learn.microsoft.com/en-us/azure/virtual-machines/linux/redhat-create-upload-vhd#hyper-v-manager
+### Install the Azure Linux Agent, cloud-init and other necessary utilities 
+
+[[packages]]
+name = "WALinuxAgent"
+version = "*"
+
+[[packages]]
+name = "cloud-init"
+version = "*"
+
+[[packages]]
+name = "cloud-utils-growpart"
+version = "*"
+
+[[packages]]
+name = "gdisk"
+version = "*"
+
+[[packages]]
+name = "hyperv-daemons"
+version = "*"
+
+[customizations.services]
+enabled = ["microshift", "waagent.service", "cloud-init.service", "NetworkManager.service"]
+
+[customizations.firewall]
+ports = ["22:tcp", "80:tcp", "443:tcp", "5353:udp", "6443:tcp", "30000-32767:tcp", "30000-32767:udp"]
+
+[customizations.firewall.services]
+enabled = ["mdns", "ssh", "http", "https"]
+
+[[customizations.firewall.zones]]
+name = "trusted"
+sources = ["10.42.0.0/16", "169.254.169.1"]
+
+[[customizations.user]]
+name = "admin"
+password = "admin"
+groups = ["users", "wheel"]
+
+[[customizations.files]]
+path = "/etc/waagent.conf"
+mode = "0644"
+user = "root"
+group = "root"
+data = """
+#
+# Azure Linux Agent Configuration	
+#
+Role.StateConsumer=None 
+Role.ConfigurationConsumer=None 
+Role.TopologyConsumer=None
+Provisioning.Enabled=y
+Provisioning.Agent=cloud-init
+Provisioning.DeleteRootPassword=n
+Provisioning.RegenerateSshHostKeyPair=y
+Provisioning.SshHostKeyPairType=rsa
+Provisioning.MonitorHostName=y
+ResourceDisk.Format=n
+ResourceDisk.Filesystem=ext4
+ResourceDisk.MountPoint=/mnt/resource 
+ResourceDisk.EnableSwap=n 
+ResourceDisk.SwapSizeMB=0
+LBProbeResponder=y
+Logs.Verbose=n
+OS.RootDeviceScsiTimeout=300
+OS.OpensslPath=None
+"""
+
+[[customizations.files]]
+path = "/etc/cloud/cloud.cfg.d/91-azure_datasource.cfg"
+mode = "0644"
+user = "root"
+group = "root"
+data = """
+datasource_list: [ Azure ]
+datasource:
+    Azure:
+        apply_network_config: False
+"""
+
+[[customizations.files]]
+path = "/etc/cloud/cloud.cfg.d/05_logging.cfg"
+mode = "0644"
+user = "root"
+group = "root"
+data = """
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+"""

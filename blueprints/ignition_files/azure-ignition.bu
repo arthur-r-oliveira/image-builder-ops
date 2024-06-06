@@ -1,0 +1,115 @@
+variant: r4e
+version: 1.1.0
+passwd:
+  users:
+    - name: core
+      groups:
+        - wheel
+      system: true
+      ssh_authorized_keys:
+        - "ssh-rsa <SSH Pub Key>"
+storage:
+  files:
+    - path: /etc/waagent.conf
+      overwrite: true
+      contents:
+        inline: |
+          #
+          # Azure Linux Agent Configuration	
+          #
+          Role.StateConsumer=None 
+          Role.ConfigurationConsumer=None 
+          Role.TopologyConsumer=None
+          Provisioning.Enabled=y
+          Provisioning.Agent=cloud-init
+          Provisioning.DeleteRootPassword=n
+          Provisioning.RegenerateSshHostKeyPair=y
+          Provisioning.SshHostKeyPairType=rsa
+          Provisioning.MonitorHostName=y
+          ResourceDisk.Format=n
+          ResourceDisk.Filesystem=ext4
+          ResourceDisk.MountPoint=/mnt/resource 
+          ResourceDisk.EnableSwap=n 
+          ResourceDisk.SwapSizeMB=0
+          LBProbeResponder=y
+          Logs.Verbose=n
+          OS.RootDeviceScsiTimeout=300
+          OS.OpensslPath=None
+      mode: 0644
+    - path: /etc/cloud/cloud.cfg.d/91-azure_datasource.cfg
+      overwrite: true
+      contents:
+        inline: |
+          datasource_list: [ Azure ]
+          datasource:
+              Azure:
+                  apply_network_config: False
+      mode: 0644
+    - path: /etc/modprobe.d/blocklist.conf
+      overwrite: true
+      contents:
+        inline: |
+          blacklist nouveau
+          blacklist lbm-nouveau
+          blacklist floppy
+          blacklist amdgpu
+          blacklist skx_edac
+          blacklist intel_cstate
+      mode: 0644
+    - path: /etc/cloud/cloud.cfg.d/05_logging.cfg
+      overwrite: true
+      contents:
+        inline: |
+          output: {all: '| tee -a /var/log/cloud-init-output.log'}
+      mode: 0644
+    - path: /etc/udev/rules.d/68-azure-sriov-nm-unmanaged.rules
+      overwrite: true
+      contents:
+        inline: |
+          SUBSYSTEM=="net", DRIVERS=="hv_pci", ACTION=="add", ENV{NM_UNMANAGED}="1"
+      mode: 0644
+    - path: /etc/sudoers.d/core
+      contents:
+        inline: |
+          core ALL=(ALL) NOPASSWD: ALL
+      mode: 0440        
+    - path: /etc/crio/openshift-pull-secret
+      overwrite: true
+      contents:
+        inline: |
+          <pull secret>
+      mode: 0600
+    - path: /usr/local/bin/config-firewall-and-services.sh
+      overwrite: true
+      contents:
+        inline: |
+          bash -x
+          firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16
+          firewall-cmd --permanent --zone=trusted --add-source=169.254.169.1
+          firewall-cmd --reload
+          rm -f /etc/udev/rules.d/70-persistent-net.rules
+          rm -f /etc/udev/rules.d/75-persistent-net-generator.rules
+          rm -f /etc/udev/rules.d/80-net-name-slot-rules
+          rm -f /usr/local/bin/config-firewall-and-services.sh
+      mode: 0750
+systemd:
+  units:
+    - name: first-boot.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Setup host at first boot
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/root/config-firewall-and-services.sh
+        [Install]
+        WantedBy=multi-user.target
+    - name: microshift.service
+      enabled: true
+    - name: waagent.service
+      enabled: true
+    - name: cloud-init.service
+      enabled: true
+    - name: NetworkManager.service
+      enabled: true

@@ -1,0 +1,322 @@
+[azureuser@microshift02 k8s-device-plugin]$ sudo cat /etc/microshift/manifests/nvidia-device-plugin.yml 
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
+# == ABOUT THIS STATIC DEPLOYMENT
+#
+# The pod needs to run with privileged security context to be able to
+# mount a hostPath volume. To avoid granting permissions too broadly,
+# it is safer to deploy the pod in its own namespace with its own service
+# account.
+#
+# This static deployment is aimed at OpenShift and creates:
+#
+#   - A namespace with the labels for the PodSecurity admission webhook
+#   - A role that grants the read nodes resources and use the privileged
+#     security context constraints (SCC) in Microshift.
+#   - A service account that the pod will use to run in the namespace.
+#   - A role binding to link the cluster role and the service account in
+#     the scope of the namespace.
+#   - The device plugin daemon set with the privileged security context
+#     and the service account.
+#
+# The other attributes of the device plugin daemon set are unchanged from
+# the standard static deployment definition with compatibility with CPU
+# Manager.
+#
+# To deploy it in Microshift, simply put this file in
+# /etc/microshift/manifests and add the file to the list of resources in
+# your Kustomization resource.
+#
+# See Microshift documentation for more details on the automated
+# deployment of resources:
+# https://access.redhat.com/documentation/en-us/red_hat_build_of_microshift/
+#
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+  name: nvidia-device-plugin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nvidia-device-plugin
+  namespace: nvidia-device-plugin
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - security.openshift.io
+    resourceNames:
+      - privileged
+    resources:
+      - securitycontextconstraints
+    verbs:
+      - use
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nvidia-device-plugin
+  namespace: nvidia-device-plugin
+---
+apiVersion: v1
+data:
+  nvidia-plugin-configs: |-
+    version: v1
+    sharing:
+      timeSlicing:
+        resources:
+        - name: nvidia.com/gpu
+          replicas: 4
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/name: nvidia-device-plugin
+    app.kubernetes.io/version: 0.15.0
+  name: nvidia-device-plugin-configs
+  namespace: nvidia-device-plugin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nvidia-device-plugin
+  namespace: nvidia-device-plugin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nvidia-device-plugin
+subjects:
+  - kind: ServiceAccount
+    name: nvidia-device-plugin
+    namespace: nvidia-device-plugin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: nvidia-device-plugin
+    app.kubernetes.io/version: 0.15.0
+  name: nvidia-device-plugin-clusterrole
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nvidia-device-plugin-clusterrolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nvidia-device-plugin-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: nvidia-device-plugin
+  namespace: nvidia-device-plugin
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-device-plugin-daemonset
+  namespace: nvidia-device-plugin
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-device-plugin-ds
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: nvidia-device-plugin-ds
+    spec:
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      priorityClassName: "system-node-critical"
+      containers:
+      - command:
+        - config-manager
+        env:
+        - name: ONESHOT
+          value: "false"
+        - name: KUBECONFIG
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: NODE_LABEL
+          value: nvidia.com/device-plugin.config
+        - name: CONFIG_FILE_SRCDIR
+          value: /available-configs
+        - name: CONFIG_FILE_DST
+          value: /config/config.yaml
+        - name: DEFAULT_CONFIG
+          value: nvidia-plugin-configs
+        - name: FALLBACK_STRATEGIES
+          value: named,single
+        - name: SEND_SIGNAL
+          value: "true"
+        - name: SIGNAL
+          value: "1"
+        - name: PROCESS_TO_SIGNAL
+          value: nvidia-device-plugin
+        image: nvcr.io/nvidia/k8s-device-plugin:v0.15.0
+        imagePullPolicy: IfNotPresent
+        name: nvidia-device-plugin-sidecar
+        resources: {}
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /available-configs
+          name: available-configs
+        - mountPath: /config
+          name: config
+      - command:
+        - nvidia-device-plugin
+        env:
+        - name: MPS_ROOT
+          value: /run/nvidia/mps
+        - name: CONFIG_FILE
+          value: /config/config.yaml
+        - name: DEFAULT_CONFIG
+          value: nvidia-plugin-configs
+        - name: NVIDIA_MIG_MONITOR_DEVICES
+          value: all
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: all
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: compute,utility
+        image: nvcr.io/nvidia/k8s-device-plugin:v0.15.0
+        imagePullPolicy: IfNotPresent
+        name: nvidia-device-plugin-ctr
+        resources: {}
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/device-plugins
+          name: device-plugin
+        - mountPath: /dev/shm
+          name: mps-shm
+        - mountPath: /mps
+          name: mps-root
+        - mountPath: /var/run/cdi
+          name: cdi-root
+        - mountPath: /available-configs
+          name: available-configs
+        - mountPath: /config
+          name: config
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - command:
+        - config-manager
+        env:
+        - name: ONESHOT
+          value: "true"
+        - name: KUBECONFIG
+          value: ""
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: NODE_LABEL
+          value: nvidia.com/device-plugin.config
+        - name: CONFIG_FILE_SRCDIR
+          value: /available-configs
+        - name: DEFAULT_CONFIG
+          value: nvidia-plugin-configs
+        - name: CONFIG_FILE_DST
+          value: /config/config.yaml
+        - name: FALLBACK_STRATEGIES
+          value: named,single
+        - name: SEND_SIGNAL
+          value: "false"
+        - name: SIGNAL
+          value: ""
+        - name: PROCESS_TO_SIGNAL
+          value: ""
+        volumeMounts:
+          - name: available-configs
+            mountPath: /available-configs
+          - name: config
+            mountPath: /config
+        image: nvcr.io/nvidia/k8s-device-plugin:v0.15.0
+        imagePullPolicy: IfNotPresent
+        name: nvidia-device-plugin-init
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      priorityClassName: system-node-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        privileged: true
+      serviceAccount: nvidia-device-plugin
+      serviceAccountName: nvidia-device-plugin
+      shareProcessNamespace: true
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /var/lib/kubelet/device-plugins
+          type: ""
+        name: device-plugin
+      - hostPath:
+          path: /run/nvidia/mps
+          type: DirectoryOrCreate
+        name: mps-root
+      - hostPath:
+          path: /run/nvidia/mps/shm
+          type: ""
+        name: mps-shm
+      - hostPath:
+          path: /var/run/cdi
+          type: DirectoryOrCreate
+        name: cdi-root
+      - configMap:
+          defaultMode: 420
+          name: nvidia-device-plugin-configs
+        name: available-configs
+      - emptyDir: {}
+        name: config

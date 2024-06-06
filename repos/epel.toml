@@ -1,0 +1,8 @@
+check_gpg = true
+check_ssl = true
+id = "EPEL9"
+name = "EPEL9"
+rhsm = false
+system = false
+type = "yum-baseurl"
+url = "https://mirrors.kernel.org/fedora-epel/9/Everything/x86_64/"

@@ -1,0 +1,434 @@
+variant: r4e
+version: 1.1.0
+passwd:
+  users:
+    - name: core
+      groups:
+        - wheel
+      system: true
+      ssh_authorized_keys:
+        - "ssh-rsa <ssh key>"
+storage:
+  files:
+    - path: /etc/waagent.conf
+      overwrite: true
+      contents:
+        inline: |
+          #
+          # Azure Linux Agent Configuration	
+          #
+          Role.StateConsumer=None 
+          Role.ConfigurationConsumer=None 
+          Role.TopologyConsumer=None
+          Provisioning.Enabled=y
+          Provisioning.Agent=cloud-init
+          Provisioning.DeleteRootPassword=n
+          Provisioning.RegenerateSshHostKeyPair=y
+          Provisioning.SshHostKeyPairType=rsa
+          Provisioning.MonitorHostName=y
+          ResourceDisk.Format=n
+          ResourceDisk.Filesystem=ext4
+          ResourceDisk.MountPoint=/mnt/resource 
+          ResourceDisk.EnableSwap=n 
+          ResourceDisk.SwapSizeMB=0
+          LBProbeResponder=y
+          Logs.Verbose=n
+          OS.RootDeviceScsiTimeout=300
+          OS.OpensslPath=None
+      mode: 0644
+    - path: /etc/cloud/cloud.cfg.d/91-azure_datasource.cfg
+      overwrite: true
+      contents:
+        inline: |
+          datasource_list: [ Azure ]
+          datasource:
+              Azure:
+                  apply_network_config: False
+      mode: 0644
+    - path: /etc/modprobe.d/blocklist.conf
+      overwrite: true
+      contents:
+        inline: |
+          blacklist nouveau
+          blacklist lbm-nouveau
+          blacklist floppy
+          blacklist amdgpu
+          blacklist skx_edac
+          blacklist intel_cstate
+      mode: 0644
+    - path: /etc/cloud/cloud.cfg.d/05_logging.cfg
+      overwrite: true
+      contents:
+        inline: |
+          output: {all: '| tee -a /var/log/cloud-init-output.log'}
+      mode: 0644
+    - path: /etc/udev/rules.d/68-azure-sriov-nm-unmanaged.rules
+      overwrite: true
+      contents:
+        inline: |
+          SUBSYSTEM=="net", DRIVERS=="hv_pci", ACTION=="add", ENV{NM_UNMANAGED}="1"
+      mode: 0644
+    - path: /etc/sudoers.d/core
+      contents:
+        inline: |
+          core ALL=(ALL) NOPASSWD: ALL
+      mode: 0440        
+    - path: /etc/crio/openshift-pull-secret
+      overwrite: true
+      contents:
+        inline: |
+          <pull secret>
+      mode: 0600
+    - path: /etc/microshift/manifests/nvidia-device-plugin-time-slice.yaml
+      overwrite: true
+      contents:
+        inline: |
+          ---
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            labels:
+              pod-security.kubernetes.io/enforce: privileged
+            name: nvidia-device-plugin
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: nvidia-device-plugin
+            namespace: nvidia-device-plugin
+          rules:
+            - apiGroups:
+                - ""
+              resources:
+                - nodes
+              verbs:
+                - get
+                - list
+                - watch
+            - apiGroups:
+                - security.openshift.io
+              resourceNames:
+                - privileged
+              resources:
+                - securitycontextconstraints
+              verbs:
+                - use
+          ---
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: nvidia-device-plugin
+            namespace: nvidia-device-plugin
+          ---
+          apiVersion: v1
+          data:
+            nvidia-plugin-configs: |-
+              version: v1
+              sharing:
+                timeSlicing:
+                  resources:
+                  - name: nvidia.com/gpu
+                    replicas: 4
+          kind: ConfigMap
+          metadata:
+            labels:
+              app.kubernetes.io/name: nvidia-device-plugin
+              app.kubernetes.io/version: 0.15.0
+            name: nvidia-device-plugin-configs
+            namespace: nvidia-device-plugin
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: nvidia-device-plugin
+            namespace: nvidia-device-plugin
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: nvidia-device-plugin
+          subjects:
+            - kind: ServiceAccount
+              name: nvidia-device-plugin
+              namespace: nvidia-device-plugin
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            labels:
+              app.kubernetes.io/name: nvidia-device-plugin
+              app.kubernetes.io/version: 0.15.0
+            name: nvidia-device-plugin-clusterrole
+          rules:
+          - apiGroups:
+            - ""
+            resources:
+            - nodes
+            verbs:
+            - get
+            - list
+            - watch
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: nvidia-device-plugin-clusterrolebinding
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: nvidia-device-plugin-clusterrole
+          subjects:
+          - kind: ServiceAccount
+            name: nvidia-device-plugin
+            namespace: nvidia-device-plugin
+          ---
+          apiVersion: apps/v1
+          kind: DaemonSet
+          metadata:
+            name: nvidia-device-plugin-daemonset
+            namespace: nvidia-device-plugin
+          spec:
+            selector:
+              matchLabels:
+                name: nvidia-device-plugin-ds
+            updateStrategy:
+              type: RollingUpdate
+            template:
+              metadata:
+                labels:
+                  name: nvidia-device-plugin-ds
+              spec:
+                containers:
+                - command:
+                  - config-manager
+                  env:
+                  - name: ONESHOT
+                    value: "false"
+                  - name: KUBECONFIG
+                  - name: NODE_NAME
+                    valueFrom:
+                      fieldRef:
+                        apiVersion: v1
+                        fieldPath: spec.nodeName
+                  - name: NODE_LABEL
+                    value: nvidia.com/device-plugin.config
+                  - name: CONFIG_FILE_SRCDIR
+                    value: /available-configs
+                  - name: CONFIG_FILE_DST
+                    value: /config/config.yaml
+                  - name: DEFAULT_CONFIG
+                    value: nvidia-plugin-configs
+                  - name: FALLBACK_STRATEGIES
+                    value: named,single
+                  - name: SEND_SIGNAL
+                    value: "true"
+                  - name: SIGNAL
+                    value: "1"
+                  - name: PROCESS_TO_SIGNAL
+                    value: nvidia-device-plugin
+                  image: nvcr.io/nvidia/k8s-device-plugin:v0.15.0
+                  imagePullPolicy: IfNotPresent
+                  name: nvidia-device-plugin-sidecar
+                  resources: {}
+                  securityContext:
+                    privileged: true
+                  terminationMessagePath: /dev/termination-log
+                  terminationMessagePolicy: File
+                  volumeMounts:
+                  - mountPath: /available-configs
+                    name: available-configs
+                  - mountPath: /config
+                    name: config
+                - command:
+                  - nvidia-device-plugin
+                  env:
+                  - name: MPS_ROOT
+                    value: /run/nvidia/mps
+                  - name: CONFIG_FILE
+                    value: /config/config.yaml
+                  - name: DEFAULT_CONFIG
+                    value: nvidia-plugin-configs
+                  - name: NVIDIA_MIG_MONITOR_DEVICES
+                    value: all
+                  - name: NVIDIA_VISIBLE_DEVICES
+                    value: all
+                  - name: NVIDIA_DRIVER_CAPABILITIES
+                    value: compute,utility
+                  image: nvcr.io/nvidia/k8s-device-plugin:v0.15.0
+                  imagePullPolicy: IfNotPresent
+                  name: nvidia-device-plugin-ctr
+                  resources: {}
+                  securityContext:
+                    privileged: true
+                  terminationMessagePath: /dev/termination-log
+                  terminationMessagePolicy: File
+                  volumeMounts:
+                  - mountPath: /var/lib/kubelet/device-plugins
+                    name: device-plugin
+                  - mountPath: /dev/shm
+                    name: mps-shm
+                  - mountPath: /mps
+                    name: mps-root
+                  - mountPath: /var/run/cdi
+                    name: cdi-root
+                  - mountPath: /available-configs
+                    name: available-configs
+                  - mountPath: /config
+                    name: config
+                dnsPolicy: ClusterFirst
+                initContainers:
+                - command:
+                  - config-manager
+                  env:
+                  - name: ONESHOT
+                    value: "true"
+                  - name: KUBECONFIG
+                    value: ""
+                  - name: NODE_NAME
+                    valueFrom:
+                      fieldRef:
+                        apiVersion: v1
+                        fieldPath: spec.nodeName
+                  - name: NODE_LABEL
+                    value: nvidia.com/device-plugin.config
+                  - name: CONFIG_FILE_SRCDIR
+                    value: /available-configs
+                  - name: DEFAULT_CONFIG
+                    value: nvidia-plugin-configs
+                  - name: CONFIG_FILE_DST
+                    value: /config/config.yaml
+                  - name: FALLBACK_STRATEGIES
+                    value: named,single
+                  - name: SEND_SIGNAL
+                    value: "false"
+                  - name: SIGNAL
+                    value: ""
+                  - name: PROCESS_TO_SIGNAL
+                    value: ""
+                  volumeMounts:
+                    - name: available-configs
+                      mountPath: /available-configs
+                    - name: config
+                      mountPath: /config
+                  image: nvcr.io/nvidia/k8s-device-plugin:v0.15.0
+                  imagePullPolicy: IfNotPresent
+                  name: nvidia-device-plugin-init
+                  resources: {}
+                  terminationMessagePath: /dev/termination-log
+                  terminationMessagePolicy: File
+                priorityClassName: system-node-critical
+                restartPolicy: Always
+                schedulerName: default-scheduler
+                securityContext:
+                  privileged: true
+                serviceAccount: nvidia-device-plugin
+                serviceAccountName: nvidia-device-plugin
+                shareProcessNamespace: true
+                terminationGracePeriodSeconds: 30
+                tolerations:
+                - key: CriticalAddonsOnly
+                  operator: Exists
+                - effect: NoSchedule
+                  key: nvidia.com/gpu
+                  operator: Exists
+                volumes:
+                - hostPath:
+                    path: /var/lib/kubelet/device-plugins
+                    type: ""
+                  name: device-plugin
+                - hostPath:
+                    path: /run/nvidia/mps
+                    type: DirectoryOrCreate
+                  name: mps-root
+                - hostPath:
+                    path: /run/nvidia/mps/shm
+                    type: ""
+                  name: mps-shm
+                - hostPath:
+                    path: /var/run/cdi
+                    type: DirectoryOrCreate
+                  name: cdi-root
+                - configMap:
+                    defaultMode: 420
+                    name: nvidia-device-plugin-configs
+                  name: available-configs
+                - emptyDir: {}
+                  name: config   
+      mode: 0640
+    - path: /etc/microshift/manifests/kustomization.yaml
+      overwrite: true
+      contents:
+        inline: |
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          namespace: nvidia-device-plugin
+          resources:
+            - nvidia-device-plugin-time-slice.yaml    
+      mode: 0640
+    - path: /etc/microshift/nvidia-container-microshift.te
+      overwrite: true
+      contents:
+        inline: |
+          module nvidia-container-microshift 1.0;
+          
+          require {
+                        type xserver_misc_device_t;
+                        type container_t;
+                        class chr_file { map read write };
+          }
+          # ============= container_t ==============
+          allow container_t xserver_misc_device_t:chr_file map;
+      mode: 0600
+    - path: /usr/local/bin/config-firewall-and-services.sh
+      overwrite: true
+      contents:
+        inline: |
+          #!/bin/bash -x
+          firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16
+          firewall-cmd --permanent --zone=trusted --add-source=169.254.169.1
+          firewall-cmd --reload
+          rm -f /etc/udev/rules.d/70-persistent-net.rules
+          rm -f /etc/udev/rules.d/75-persistent-net-generator.rules
+          rm -f /etc/udev/rules.d/80-net-name-slot-rules
+          setsebool -P container_use_devices on
+          checkmodule -m -M -o /etc/microshift/nvidia-container-microshift.mod /etc/microshift/nvidia-container-microshift.te
+          semodule_package --outfile /etc/microshift/nvidia-container-microshift.pp --module /etc/microshift/nvidia-container-microshift.mod
+          semodule -i /etc/nvidia-container-microshift.pp
+          mv /etc/crio/crio.conf.d/microshift.conf /etc/crio/crio.conf.d/10-microshift.conf
+          nvidia-ctk runtime configure --runtime=crio --set-as-default --config=/etc/crio/crio.conf.d/99-nvidia.conf
+          nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+          systemctl restart crio
+          systemctl restart microshift
+          systemctl stop first-boot.service
+          systemctl disable first-boot.service
+          sudo systemctl daemon-reload
+          /bin/touch /etc/first-boot-done
+          oc apply -k /etc/microshift/manifests
+          chmod 400 /usr/local/bin/config-firewall-and-services.sh
+      mode: 0750
+systemd:
+  units:
+    - name: microshift.service
+      enabled: true
+    - name: NetworkManager.service
+      enabled: true
+    - name: nvidia-fabricmanager.service
+      enabled: true
+    - name: nvidia-persistenced.service
+      enabled: true
+    - name: first-boot.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Setup host at first boot
+        After=network.target microshift.service firewalld.service
+        ConditionPathExists=!/etc/first-boot-done
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/bin/config-firewall-and-services.sh
+        [Install]
+        WantedBy=multi-user.target
+    - name: waagent.service
+      enabled: true
+    - name: cloud-init.service
+      enabled: true

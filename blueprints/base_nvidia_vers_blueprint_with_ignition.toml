@@ -1,0 +1,80 @@
+name = "rhel-9.3-microshift-4.15-edge-raw-nvidia-v2"
+description = "Blueprint for Edge Raw image, RHEL 9.3 with MicroShift 4.15 and Configuration through ignition"
+version = "0.0.2"
+modules = []
+groups = []
+distro = "rhel-93"
+
+[[packages]]
+name = "podman"
+version = "*"
+
+[[packages]]
+name = "microshift"
+version = "*"
+
+[[packages]]
+name = "microshift-greenboot"
+version = "*"
+
+[[packages]]
+name = "microshift-networking"
+version = "*"
+
+[[packages]]
+name = "microshift-selinux"
+version = "*"
+
+### NVIDIA packages https://docs.nvidia.com/datacenter/cloud-native/edge/latest/nvidia-gpu-with-device-edge.html#installing-the-nvidia-gpu-driver
+
+[[packages]]
+name = "nvidia-driver"
+version = "550.54.15"
+
+[[packages]]
+name = "nvidia-fabric-manager"
+version = "*"
+
+[[packages]]
+name = "libnvidia-nscq-550"
+version = "*"
+
+[[packages]]
+name = "nvidia-container-toolkit"
+version = "*"
+
+[[packages]]
+name = "container-selinux.noarch"
+version = "*"
+
+[[packages]]
+name = "nvidia-driver-cuda"
+version = "550.54.15"
+
+### 
+
+## According to https://learn.microsoft.com/en-us/azure/virtual-machines/linux/redhat-create-upload-vhd#hyper-v-manager
+### Install the Azure Linux Agent, cloud-init and other necessary utilities 
+
+[[packages]]
+name = "WALinuxAgent"
+version = "*"
+
+[[packages]]
+name = "cloud-init"
+version = "*"
+
+[[packages]]
+name = "cloud-utils-growpart"
+version = "*"
+
+[[packages]]
+name = "gdisk"
+version = "*"
+
+[[packages]]
+name = "hyperv-daemons"
+version = "*"
+
+[customizations.ignition.firstboot]
+url = "http://20.115.57.36/azure-nvidia-config.ig"

@@ -1,0 +1,56 @@
+name = "rhel-9.3-microshift-4.15-edge-raw"
+description = "Blueprint for Edge Raw image, RHEL 9.3 with MicroShift 4.15 and Configuration through ignition"
+version = "0.0.1"
+modules = []
+groups = []
+distro = "rhel-93"
+
+[[packages]]
+name = "microshift"
+version = "*"
+
+[[packages]]
+name = "microshift-greenboot"
+version = "*"
+
+[[packages]]
+name = "microshift-networking"
+version = "*"
+
+[[packages]]
+name = "microshift-selinux"
+version = "*"
+
+## According to https://learn.microsoft.com/en-us/azure/virtual-machines/linux/redhat-create-upload-vhd#hyper-v-manager
+### Install the Azure Linux Agent, cloud-init and other necessary utilities 
+
+[[packages]]
+name = "WALinuxAgent"
+version = "*"
+
+[[packages]]
+name = "cloud-init"
+version = "*"
+
+[[packages]]
+name = "cloud-utils-growpart"
+version = "*"
+
+[[packages]]
+name = "gdisk"
+version = "*"
+
+[[packages]]
+name = "hyperv-daemons"
+version = "*"
+
+[[customizations.sshkey]]
+user = "root"
+key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDSJmwooCZiHZ+MQ77iKMLFDwBicf5+eUP5vX9rCtXnbHJtxgSegzn+fWt6opEXyuD/pNDPQMdQVL4HLhO6WIdOZT4a56HHCtP1iZsQotfoYanBM6YJekjWlbtXN62Hg+KIWU9vUGgrQbiZ+rd5KFNRC6EGun63McIXeVKn7mjnP9BklA6nVNAFLy6b2ZiHCgM7F3uXya7IMoq1UNIYin3+wwtYIASydL7Q93sxdDbq4ThnYFN1c7wG9Cu7yGzfdjyKriMRkKv0eADwiGt2+nkw2+srlMEV1lVrHJr6wryvaup0NSdWekkQWRDwR0CAEXgTISiA7zxUFVAdan0qItBCmVwAQZb2mgJpx7+/KfN2JGGwvkwtXMQmmRpQ9VH7XGA1Hhl7XzsFALLS38+lelKvzWMwlbJtUPJamcYxnkyq3jX2J0DPCxT0vdChPaX8Fa5fzoIgruvSlfkTTDZrJXVFsmDr4uFTC3Ka+ryrgQwu/u2m1yRBeRMOAJUxlgyDh9U= arolivei@arolivei-thinkpadp1gen3.remote.csb"
+
+[[customizations.sshkey]]
+user = "azureuser"
+key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDSJmwooCZiHZ+MQ77iKMLFDwBicf5+eUP5vX9rCtXnbHJtxgSegzn+fWt6opEXyuD/pNDPQMdQVL4HLhO6WIdOZT4a56HHCtP1iZsQotfoYanBM6YJekjWlbtXN62Hg+KIWU9vUGgrQbiZ+rd5KFNRC6EGun63McIXeVKn7mjnP9BklA6nVNAFLy6b2ZiHCgM7F3uXya7IMoq1UNIYin3+wwtYIASydL7Q93sxdDbq4ThnYFN1c7wG9Cu7yGzfdjyKriMRkKv0eADwiGt2+nkw2+srlMEV1lVrHJr6wryvaup0NSdWekkQWRDwR0CAEXgTISiA7zxUFVAdan0qItBCmVwAQZb2mgJpx7+/KfN2JGGwvkwtXMQmmRpQ9VH7XGA1Hhl7XzsFALLS38+lelKvzWMwlbJtUPJamcYxnkyq3jX2J0DPCxT0vdChPaX8Fa5fzoIgruvSlfkTTDZrJXVFsmDr4uFTC3Ka+ryrgQwu/u2m1yRBeRMOAJUxlgyDh9U= arolivei@arolivei-thinkpadp1gen3.remote.csb"
+
+[customizations.ignition.firstboot]
+url = "http://20.115.57.36/azure-config.ig"
