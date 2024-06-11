@@ -1,0 +1,8 @@
+id = "rhocp-4.16-deps"
+name = "OpenShift V4.16-el9-beta"
+type = "yum-baseurl"
+url = "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rpms/4.16-el9-beta/"
+check_gpg = false
+check_ssl = false
+system = false
+rhsm = true

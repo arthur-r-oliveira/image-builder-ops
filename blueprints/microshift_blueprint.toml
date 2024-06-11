@@ -1,0 +1,24 @@
+name = "microshift-min"
+description = ""
+version = "0.0.1"
+modules = []
+groups = []
+
+[[packages]]
+name = "microshift"
+version = "*"
+
+[customizations.services]
+enabled = ["microshift"]
+
+[customizations.firewall.services]
+enabled = ["mdns", "ssh", "http", "https"]
+
+[[customizations.firewall.zones]]
+name = "trusted"
+sources = ["10.42.0.0/16", "169.254.169.1"]
+
+[[customizations.user]]
+name = "admin"
+password = "admin"
+groups = ["users", "wheel"]
